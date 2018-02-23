@@ -2,7 +2,6 @@
 var touch = true; //when false it disables the back button
 var showAlert = true; //show initial alert info message
 var appPath = app.GetAppPath(); //get public directory
-var defaults = appPath + "/defaults.json"; //save defaults
 
 function OnStart() {
     
@@ -150,10 +149,12 @@ function btnZip_OnTouch() {
     //append additional assets
     var lst = edtAssets.GetText().split(",");
     for(var i in lst) {
-        var file = lst[i];
-        if(!lst[i].startsWith("/")) file = appPath + "/" + file;
-        if(app.FolderExists(file) || app.FileExists(file))
-            AddToZip(zip, path, file);
+        var file = lst[i].trim();
+        if(file) {
+            if(!lst[i].startsWith("/")) file = appPath + "/" + file;
+            if(app.FolderExists(file) || app.FileExists(file))
+                AddToZip(zip, path, file);
+        }
     }
     
     zip.Close();
@@ -193,8 +194,10 @@ function btnInstall_OnTouch() {
         //copy additional assets
         var lst = edtAssets.GetText().split(",");
         for(var i in lst)
-            if(app.FolderExists(lst[i])) app.CopyFolder(lst[i], path, true);
-            else if(app.FileExists(lst[i])) app.CopyFile(lst[i], path);
+            if(lst[i] = lst[i].trim()) {
+                if(app.FolderExists(lst[i])) app.CopyFolder(lst[i], path, true);
+                else if(app.FileExists(lst[i])) app.CopyFile(lst[i], path);
+            }
     } );
     
     app.HideProgress();
@@ -245,6 +248,7 @@ function btnRun_OnTouch() {
     //delete file soon
     setTimeout(function() { app.DeleteFile(path); }, 1000);
 }
+
 //apply name changes on template files
 function edtName_OnChange() {
     if(edtName.tmt) clearTimeout(edtName.tmt);
@@ -271,6 +275,7 @@ function _edt_OnChange() {
 }
 
 //save text across multiple starts
+var defaults = appPath + "/defaults.json"; //save defaults
 function SaveText(key, txt) {
     var obj = (app.FileExists(defaults)? app.ReadFile(defaults) : false) || "{}";
     try { obj = JSON.parse(obj); }
