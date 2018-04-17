@@ -75,16 +75,22 @@ function OnStart() {
         layTest.SetSize(1, 1);
             
             //default code value
-            var code = LoadText("code", false) || (
-                'app.LoadPlugin("%s");\n\nfunction OnStart() {\n\n' + 
-                '    plg = app.Create%s();\n\n' +
-                '    var lay = app.CreateLayout("Linear", "VCenter,FillXY");\n' +
-                '    btn = app.CreateButton("GetVersion");\n' +
-                '    btn.SetOnTouch(CallPlugin);\n    lay.AddChild(btn);\n'+
-                '    app.AddLayout(lay);\n}\n\nfunction CallPlugin() {\n'+
-                '    alert(plg.GetVersion());\n}').replace(/\%s/g, edtName.GetText());
+            var code = app.ReadFile(appPath + "/PluginTest.js");
+            if(code.trim() == '') {
+                code = (
+                    'app.LoadPlugin("%s");\n\nfunction OnStart() {\n\n' + 
+                    '    plg = app.Create%s();\n\n' +
+                    '    var lay = app.CreateLayout("Linear", "VCenter,FillXY");\n' +
+                    '    btn = app.CreateButton("GetVersion");\n' +
+                    '    btn.SetOnTouch(CallPlugin);\n    lay.AddChild(btn);\n'+
+                    '    app.AddLayout(lay);\n}\n\nfunction CallPlugin() {\n'+
+                    '    alert(plg.GetVersion());\n}').replace(/\%s/g, edtName.GetText()
+                );
+
+                app.WriteFile(appPath + "/PluginTest.js", code);
+            }
             
-            if(app.IsPremium()) { //use code edit
+            if(false && app.IsPremium()) { //use code edit
                 edtCode = app.CreateCodeEdit("", 1, .9, "");
                 edtCode.SetText(code);
                 edtCode.SetColorScheme("dark");
@@ -100,7 +106,7 @@ function OnStart() {
                 layTest.AddChild(scr);
             }
             
-            edtCode.SetOnChange(_edt_OnChange);
+            edtCode.SetOnChange(edtCode_OnChange);
             edtCode.SetTextSize(14, "dip");
             edtCode.name = "code";
             
@@ -149,12 +155,10 @@ function btnZip_OnTouch() {
     //append additional assets
     var lst = edtAssets.GetText().split(",");
     for(var i in lst) {
-        var file = lst[i].trim();
-        if(file) {
-            if(!lst[i].startsWith("/")) file = appPath + "/" + file;
-            if(app.FolderExists(file) || app.FileExists(file))
-                AddToZip(zip, path, file);
-        }
+        var file = lst[i];
+        if(!lst[i].startsWith("/")) file = appPath + "/" + file;
+        if(app.FolderExists(file) || app.FileExists(file))
+            AddToZip(zip, path, file);
     }
     
     zip.Close();
@@ -178,13 +182,13 @@ function btnInstall_OnTouch() {
     
     //get name and define destination directories
     var name = edtName.GetText();
-    var privdir = app.GetPrivateFolder("Plugins");
+    var privdir = app.GetPrivateFolder("Plugins");  // appPath + "/../Plugins";
     var paths = [privdir, appPath + "/../.edit/docs/plugins"];
     
     //copy plugin files to each destination
     paths.forEach( function(path) {
         //create lower-cased folder
-        path +=  "/" + name.toLowerCase() + "/";
+        path += "/" + name.toLowerCase() + "/";
         if(!app.FolderExists(name)) app.MakeFolder(path);
         
         //copy and rename Plugin.js and Documentation.html to <name>.inc and <name>.html
@@ -193,11 +197,15 @@ function btnInstall_OnTouch() {
         
         //copy additional assets
         var lst = edtAssets.GetText().split(",");
-        for(var i in lst)
-            if(lst[i] = lst[i].trim()) {
-                if(app.FolderExists(lst[i])) app.CopyFolder(lst[i], path, true);
-                else if(app.FileExists(lst[i])) app.CopyFile(lst[i], path);
+        for(var i in lst) {
+            if(app.FolderExists(lst[i])) app.CopyFolder(lst[i], path + lst[i], true);
+            else if(app.FileExists(lst[i])) {
+                var fld = path + lst[i];
+                fld = fld.slice(0, fld.lastIndexOf("/"));
+                if(!app.FolderExists(fld)) app.MakeFolder(fld);
+                app.CopyFile(lst[i], path + lst[i]);
             }
+        }
     } );
     
     app.HideProgress();
@@ -236,30 +244,29 @@ function btnBack_OnTouch() {
 
 //run code from text area
 function btnRun_OnTouch() {
-    //get non-existant file path
-    var i = 0, path = appPath + "/_test";
-    while(app.FileExists(path + i.toString() + ".js")) i++;
-    path = path + i.toString() + ".js";
-    
-    //save code to file and execute it
-    app.WriteFile(path, edtCode.GetText());
-    app.StartApp(path);
-    
-    //delete file soon
-    setTimeout(function() { app.DeleteFile(path); }, 1000);
+    //execute test code
+    app.StartApp(appPath + "/PluginTest.js");
 }
 
 //apply name changes on template files
 function edtName_OnChange() {
     if(edtName.tmt) clearTimeout(edtName.tmt);
     edtName.tmt = setTimeout( function() {
-        //replace &nbsp; with normal space
-        var cur = edtName.GetText().replace(/\u00A0/gim, " ");
+        var cur = edtName.GetText();
         
         //save changed name
         SaveText(edtName.name, cur);
         edtName.tmt = false;
         edtName.prev = cur;
+    }, 1000 );
+}
+
+//save test code
+function edtCode_OnChange() {
+    if(edtCode.tmt) clearTimeout(edtCode.tmt);
+    edtCode.tmt = setTimeout( function() {
+        app.WriteFile(appPath + "/PluginTest.js", edtCode.GetText().replace(/\u00A0/gim, " "));
+        edtCode.tmt = false;
     }, 1000 );
 }
 
@@ -269,7 +276,7 @@ function _edt_OnChange() {
     var obj = this;
     if(obj.tmt) clearTimeout(obj.tmt);
     obj.tmt = setTimeout( function() {
-        SaveText(obj.name, obj.GetText().replace(/\u00A0/gim));
+        SaveText(obj.name, obj.GetText().replace(/\u00A0/gim, " "));
         obj.tmt = false;
     }, 1000 );
 }
